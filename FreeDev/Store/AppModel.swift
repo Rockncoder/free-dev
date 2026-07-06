@@ -13,6 +13,9 @@ final class AppModel {
     var statusMessage: String?
     /// 0…1 progress of the current scan (fraction of categories measured).
     var scanProgress: Double = 0
+    /// 0…1 progress of the current clean (fraction of items removed).
+    var cleanProgress: Double = 0
+    private var cleanUnitsDone = 0
 
     private let home = FileManager.default.homeDirectoryForCurrentUser.path
 
@@ -78,17 +81,31 @@ final class AppModel {
         guard !targets.isEmpty else { return }
 
         isCleaning = true
+        cleanProgress = 0
+        cleanUnitsDone = 0
         statusMessage = nil
         let freeBefore = DiskSpace.freeBytes()
+
+        let totalUnits = max(1, targets.reduce(0) { $0 + Cleaner.unitCount(for: $1.action) })
 
         var freed: Int64 = 0
         var errors: [String] = []
         for target in targets {
-            let outcome = await Task.detached { Cleaner.perform(target.action) }.value
+            let action = target.action
+            let outcome = await Task.detached {
+                Cleaner.perform(action) { [weak self] in
+                    Task { @MainActor in
+                        guard let self else { return }
+                        self.cleanUnitsDone += 1
+                        self.cleanProgress = min(1, Double(self.cleanUnitsDone) / Double(totalUnits))
+                    }
+                }
+            }.value
             freed += outcome.freedBytes
             errors.append(contentsOf: outcome.errors)
         }
 
+        cleanProgress = 1
         isCleaning = false
         await refresh()
 

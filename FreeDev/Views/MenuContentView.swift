@@ -17,32 +17,18 @@ struct MenuContentView: View {
         }
         .frame(width: 400)
         .task { if model.items.isEmpty { await model.refresh() } }
-        .confirmationDialog(
-            "Clean \(model.selectedCount) item\(model.selectedCount == 1 ? "" : "s")?",
-            isPresented: $confirmingClean, titleVisibility: .visible
-        ) {
-            Button("Reclaim \(ByteFormat.string(model.selectedReclaimable))", role: .destructive) {
-                Task { await model.cleanSelected() }
-            }
-            Button("Cancel", role: .cancel) {}
-        } message: {
-            Text(confirmSummary)
-        }
     }
 
-    /// The exact items about to be removed — shown in the confirmation so the
-    /// user always sees precisely what will be deleted.
     private var itemsToClean: [CleanupItem] {
         model.items.filter { $0.selected && $0.exists }
     }
 
+    /// Concise confirmation line — the full per-item list with sizes is already
+    /// visible in the list above, so this just states the totals and any caveat.
     private var confirmSummary: String {
-        let list = itemsToClean
-            .map { "•  \($0.title) — \(ByteFormat.string($0.reclaimableBytes))\($0.safety == .caution ? "  ⚠︎" : "")" }
-            .joined(separator: "\n")
-        var message = "Removing:\n\(list)\n\nCache folders are emptied (the folder stays); nothing outside your Xcode / dev caches is touched."
+        var message = "Empty \(model.selectedCount) item\(model.selectedCount == 1 ? "" : "s") · \(ByteFormat.string(model.selectedReclaimable))? Cache folders are emptied; source code is never touched."
         if itemsToClean.contains(where: { $0.safety == .caution }) {
-            message += "\n\n⚠︎ items are recoverable but not just cache — they get re-downloaded or rebuilt when next needed."
+            message += " ⚠︎ Includes caution items (re-downloaded or rebuilt when next needed)."
         }
         return message
     }
@@ -173,32 +159,70 @@ struct MenuContentView: View {
                 }
             }
 
-            HStack(spacing: 10) {
-                Button {
-                    Task { await model.refresh() }
-                } label: {
-                    Label("Rescan", systemImage: "arrow.clockwise")
-                        .font(.system(size: 12))
+            if model.isCleaning {
+                VStack(alignment: .leading, spacing: 8) {
+                    HStack(spacing: 8) {
+                        ProgressView().controlSize(.small)
+                        Text("Cleaning… \(Int(model.cleanProgress * 100))%")
+                            .font(.system(size: 12)).foregroundStyle(.secondary)
+                            .monospacedDigit()
+                        Spacer()
+                    }
+                    ProgressView(value: model.cleanProgress)
+                        .progressViewStyle(.linear)
                 }
-                .buttonStyle(.bordered)
-                .disabled(model.isScanning || model.isCleaning)
-
-                Spacer()
-
-                if model.isCleaning {
-                    ProgressView().controlSize(.small)
+            } else if confirmingClean {
+                // Inline confirmation — reliable inside a menu-bar popover, unlike
+                // a system confirmationDialog (whose buttons don't receive clicks here).
+                VStack(alignment: .leading, spacing: 8) {
+                    Text(confirmSummary)
+                        .font(.system(size: 11))
+                        .foregroundStyle(.secondary)
+                        .fixedSize(horizontal: false, vertical: true)
+                    HStack(spacing: 10) {
+                        Button("Cancel") { confirmingClean = false }
+                            .buttonStyle(.bordered)
+                            .font(.system(size: 12))
+                        Spacer()
+                        Button {
+                            confirmingClean = false
+                            Task { await model.cleanSelected() }
+                        } label: {
+                            Text("Reclaim \(ByteFormat.string(model.selectedReclaimable))")
+                                .font(.system(size: 12, weight: .semibold))
+                        }
+                        .buttonStyle(.borderedProminent)
+                        .tint(.red)
+                    }
                 }
+            } else {
+                HStack(spacing: 10) {
+                    Button {
+                        Task { await model.refresh() }
+                    } label: {
+                        Label("Rescan", systemImage: "arrow.clockwise")
+                            .font(.system(size: 12))
+                    }
+                    .buttonStyle(.bordered)
+                    .disabled(model.isScanning || model.isCleaning)
 
-                Button {
-                    confirmingClean = true
-                } label: {
-                    Text(model.selectedCount > 0
-                         ? "Clean \(model.selectedCount) · \(ByteFormat.string(model.selectedReclaimable))"
-                         : "Clean")
-                        .font(.system(size: 12, weight: .semibold))
+                    Spacer()
+
+                    if model.isCleaning {
+                        ProgressView().controlSize(.small)
+                    }
+
+                    Button {
+                        confirmingClean = true
+                    } label: {
+                        Text(model.selectedCount > 0
+                             ? "Clean \(model.selectedCount) · \(ByteFormat.string(model.selectedReclaimable))"
+                             : "Clean")
+                            .font(.system(size: 12, weight: .semibold))
+                    }
+                    .buttonStyle(.borderedProminent)
+                    .disabled(model.selectedCount == 0 || model.isScanning || model.isCleaning)
                 }
-                .buttonStyle(.borderedProminent)
-                .disabled(model.selectedCount == 0 || model.isScanning || model.isCleaning)
             }
 
             HStack(spacing: 8) {

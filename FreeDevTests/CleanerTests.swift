@@ -115,4 +115,33 @@ final class CleanerTests: XCTestCase {
         let remaining = Set(try fm.contentsOfDirectory(atPath: root).filter { !$0.hasPrefix(".") })
         XCTAssertEqual(remaining, ["iPad13,8 26.2.1 (23C71)", "iPhone16,2 26.2.1 (23C71)"])
     }
+
+    // MARK: progress (unitCount + onUnit)
+
+    func testEmptyDirectoryReportsUnitCountAndProgress() throws {
+        let fm = FileManager.default
+        for name in ["a", "b", "c"] {
+            try fm.createDirectory(atPath: (root as NSString).appendingPathComponent(name),
+                                   withIntermediateDirectories: true)
+        }
+        XCTAssertEqual(Cleaner.unitCount(for: .emptyDirectory(path: root)), 3)
+
+        var units = 0
+        _ = Cleaner.perform(.emptyDirectory(path: root)) { units += 1 }
+        XCTAssertEqual(units, 3, "onUnit should fire once per removed child")
+        XCTAssertEqual(try fm.contentsOfDirectory(atPath: root), [])
+    }
+
+    func testDeletePathsReportsUnitCountAndProgress() throws {
+        let fm = FileManager.default
+        let a = (root as NSString).appendingPathComponent("a")
+        let b = (root as NSString).appendingPathComponent("b")
+        try fm.createDirectory(atPath: a, withIntermediateDirectories: true)
+        try fm.createDirectory(atPath: b, withIntermediateDirectories: true)
+        XCTAssertEqual(Cleaner.unitCount(for: .deletePaths(paths: [a, b])), 2)
+
+        var units = 0
+        _ = Cleaner.perform(.deletePaths(paths: [a, b])) { units += 1 }
+        XCTAssertEqual(units, 2)
+    }
 }

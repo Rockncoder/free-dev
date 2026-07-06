@@ -22,7 +22,26 @@ enum Cleaner {
         return allowedRoots.contains { standardized.hasPrefix($0) }
     }
 
-    static func perform(_ action: CleanupItem.Action) -> Outcome {
+    /// Number of discrete steps `perform` will take for this action — used to
+    /// drive the cleaning progress bar.
+    static func unitCount(for action: CleanupItem.Action) -> Int {
+        let fm = FileManager.default
+        switch action {
+        case let .emptyDirectory(path):
+            guard isSafePath(path), let children = try? fm.contentsOfDirectory(atPath: path) else { return 0 }
+            return children.count
+        case let .deletePaths(paths):
+            return paths.filter { isSafePath($0) && fm.fileExists(atPath: $0) }.count
+        case .deleteOrphanedSimulators:
+            return 1
+        case let .deleteRuntimes(identifiers):
+            return max(1, identifiers.count)
+        }
+    }
+
+    /// - Parameter onUnit: called once per removed child/path/runtime so the UI
+    ///   can advance a progress bar during long deletes.
+    static func perform(_ action: CleanupItem.Action, onUnit: (() -> Void)? = nil) -> Outcome {
         var outcome = Outcome()
         let fm = FileManager.default
 
@@ -35,6 +54,7 @@ enum Cleaner {
                 let full = (path as NSString).appendingPathComponent(child)
                 do { try fm.removeItem(atPath: full) }
                 catch { outcome.errors.append("\(child): \(error.localizedDescription)") }
+                onUnit?()
             }
             outcome.freedBytes = max(0, before - DiskSpace.sizeOnDisk(path))
 
@@ -48,6 +68,7 @@ enum Cleaner {
                 } catch {
                     outcome.errors.append("\((path as NSString).lastPathComponent): \(error.localizedDescription)")
                 }
+                onUnit?()
             }
 
         case let .deleteOrphanedSimulators(dataPaths):
@@ -57,6 +78,7 @@ enum Cleaner {
             } else {
                 outcome.errors.append("simctl could not delete unavailable simulators")
             }
+            onUnit?()
 
         case let .deleteRuntimes(identifiers):
             // Re-read sizes now so the freed total reflects what actually existed.
@@ -69,6 +91,7 @@ enum Cleaner {
                 } else {
                     outcome.errors.append("could not delete runtime \(identifier)")
                 }
+                onUnit?()
             }
         }
         return outcome
