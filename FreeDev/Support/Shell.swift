@@ -1,14 +1,15 @@
 import Foundation
 import os
 
-/// Runs short-lived command-line tools (`du`, `xcrun`) with a hard timeout so a
-/// hung command can never stall the app. Output is drained on background queues
-/// (so a full pipe can't deadlock the child), and if the command overruns its
-/// timeout it is killed and a timed-out result is returned.
+/// Runs short-lived command-line tools (`du`, `xcrun`) with a hard timeout that
+/// it ALWAYS honours — even if the child spawns its own children or gets stuck
+/// in uninterruptible I/O. Output is captured to temp files (not pipes), so a
+/// surviving grandchild can never hold a pipe open and hang us; and after a
+/// timeout we wait only a short bounded grace before returning.
 enum Shell {
     private static let log = Logger(subsystem: "com.tekadept.FreeDev", category: "Shell")
 
-    /// Sentinel status for a command that was killed after exceeding its timeout.
+    /// Sentinel status for a command killed after exceeding its timeout.
     static let timeoutStatus: Int32 = -999
 
     struct Result {
@@ -24,10 +25,20 @@ enum Shell {
         process.executableURL = URL(fileURLWithPath: launchPath)
         process.arguments = arguments
 
-        let outPipe = Pipe()
-        let errPipe = Pipe()
-        process.standardOutput = outPipe
-        process.standardError = errPipe
+        let fm = FileManager.default
+        let tmp = fm.temporaryDirectory
+        let outURL = tmp.appendingPathComponent("freedev-\(UUID().uuidString).out")
+        let errURL = tmp.appendingPathComponent("freedev-\(UUID().uuidString).err")
+        fm.createFile(atPath: outURL.path, contents: nil)
+        fm.createFile(atPath: errURL.path, contents: nil)
+        defer { try? fm.removeItem(at: outURL); try? fm.removeItem(at: errURL) }
+
+        guard let outFH = try? FileHandle(forWritingTo: outURL),
+              let errFH = try? FileHandle(forWritingTo: errURL) else {
+            return Result(status: -1, stdout: "", stderr: "could not create output files")
+        }
+        process.standardOutput = outFH
+        process.standardError = errFH
 
         let exited = DispatchSemaphore(value: 0)
         process.terminationHandler = { _ in exited.signal() }
@@ -35,40 +46,29 @@ enum Shell {
         do {
             try process.run()
         } catch {
+            try? outFH.close(); try? errFH.close()
             return Result(status: -1, stdout: "", stderr: "\(error)")
         }
 
-        // Drain both pipes concurrently: prevents a two-pipe deadlock and lets a
-        // killed child still yield whatever it managed to write.
-        var outData = Data()
-        var errData = Data()
-        let reads = DispatchGroup()
-        let outHandle = outPipe.fileHandleForReading
-        let errHandle = errPipe.fileHandleForReading
-        reads.enter()
-        DispatchQueue.global(qos: .userInitiated).async {
-            outData = outHandle.readDataToEndOfFile(); reads.leave()
-        }
-        reads.enter()
-        DispatchQueue.global(qos: .userInitiated).async {
-            errData = errHandle.readDataToEndOfFile(); reads.leave()
-        }
-
+        var timedOut = false
         if exited.wait(timeout: .now() + timeout) == .timedOut {
-            // Hung command — never let it stall a scan. Kill it, hard if needed.
+            timedOut = true
             log.error("Timed out after \(Int(timeout), privacy: .public)s, killing: \(launchPath, privacy: .public) \(arguments.joined(separator: " "), privacy: .public)")
             process.terminate()
             if process.isRunning { kill(process.processIdentifier, SIGKILL) }
-            _ = exited.wait(timeout: .now() + 3)   // let the pipes close
-            reads.wait()
-            return Result(status: timeoutStatus,
-                          stdout: String(decoding: outData, as: UTF8.self),
-                          stderr: "timed out after \(Int(timeout))s")
+            _ = exited.wait(timeout: .now() + 2) // bounded — never wait forever
         }
 
-        reads.wait()
-        return Result(status: process.terminationStatus,
-                      stdout: String(decoding: outData, as: UTF8.self),
-                      stderr: String(decoding: errData, as: UTF8.self))
+        // Read from the files by path; we never block on the child's fds.
+        try? outFH.close()
+        try? errFH.close()
+        let outData = (try? Data(contentsOf: outURL)) ?? Data()
+        let errData = (try? Data(contentsOf: errURL)) ?? Data()
+
+        return Result(
+            status: timedOut ? timeoutStatus : process.terminationStatus,
+            stdout: String(decoding: outData, as: UTF8.self),
+            stderr: timedOut ? "timed out after \(Int(timeout))s" : String(decoding: errData, as: UTF8.self)
+        )
     }
 }

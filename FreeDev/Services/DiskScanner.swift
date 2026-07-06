@@ -138,11 +138,19 @@ enum DiskScanner {
             detail: "Downloaded Dart & Flutter packages. Re-fetched with `pub get` (keeps globally-activated tools).",
             path: "\(home)/.pub-cache/hosted"))
 
-        // Measure everything concurrently on background threads, preserving order.
+        // Run each (blocking) measurement on a GCD thread rather than the Swift
+        // cooperative pool — a slow/hung command then can't starve concurrency,
+        // and combined with Shell.run's hard timeout the scan always finishes.
         let total = specs.count
         return await withTaskGroup(of: (Int, CleanupItem).self) { group in
             for (index, make) in specs.enumerated() {
-                group.addTask { (index, make()) }
+                group.addTask {
+                    await withCheckedContinuation { (cont: CheckedContinuation<(Int, CleanupItem), Never>) in
+                        DispatchQueue.global(qos: .userInitiated).async {
+                            cont.resume(returning: (index, make()))
+                        }
+                    }
+                }
             }
             var collected: [(Int, CleanupItem)] = []
             onProgress?(0, total)
