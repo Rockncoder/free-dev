@@ -26,8 +26,25 @@ struct MenuContentView: View {
             }
             Button("Cancel", role: .cancel) {}
         } message: {
-            Text("Only regenerable caches and orphaned leftovers will be removed. Source code, archives, and in-use simulators are never touched.")
+            Text(confirmSummary)
         }
+    }
+
+    /// The exact items about to be removed — shown in the confirmation so the
+    /// user always sees precisely what will be deleted.
+    private var itemsToClean: [CleanupItem] {
+        model.items.filter { $0.selected && $0.exists }
+    }
+
+    private var confirmSummary: String {
+        let list = itemsToClean
+            .map { "•  \($0.title) — \(ByteFormat.string($0.reclaimableBytes))\($0.safety == .caution ? "  ⚠︎" : "")" }
+            .joined(separator: "\n")
+        var message = "Removing:\n\(list)\n\nCache folders are emptied (the folder stays); nothing outside your Xcode / dev caches is touched."
+        if itemsToClean.contains(where: { $0.safety == .caution }) {
+            message += "\n\n⚠︎ items are recoverable but not just cache — they get re-downloaded or rebuilt when next needed."
+        }
+        return message
     }
 
     // MARK: Header
