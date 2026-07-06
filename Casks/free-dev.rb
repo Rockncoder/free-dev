@@ -8,7 +8,7 @@ cask "free-dev" do
   desc "Menu bar app that reclaims disk space from Xcode and dev-tool leftovers"
   homepage "https://github.com/Rockncoder/free-dev"
 
-  depends_on macos: ">= :sonoma" # macOS 14+
+  depends_on macos: :sonoma # macOS 14+ (minimum)
 
   app "FreeDev.app"
 
