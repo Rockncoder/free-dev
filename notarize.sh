@@ -20,7 +20,7 @@
 set -euo pipefail
 cd "$(dirname "$0")"
 
-TEAM_ID="${DEVELOPMENT_TEAM:-CHANGE_ME}"          # 10-char Apple Team ID
+TEAM_ID="${DEVELOPMENT_TEAM:-S2NBGK85WD}"         # Apple Team ID (public, not a secret)
 NOTARY_PROFILE="${NOTARY_PROFILE:-free-dev-notary}"
 SCHEME="FreeDev"
 APP_NAME="FreeDev"
