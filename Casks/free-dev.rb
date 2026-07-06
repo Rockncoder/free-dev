@@ -1,6 +1,6 @@
 cask "free-dev" do
-  version "1.0.0"
-  sha256 "fe941d8d26375f35dcc88032cf335c69603c8eb1bd81f6ad80f17a72cbc3a4e1"
+  version "1.0.2"
+  sha256 "30c1c7cd4b0309b9d460eb8b15abc70f8673831609d1e332311b7b88d2e02247"
 
   url "https://github.com/Rockncoder/free-dev/releases/download/v#{version}/FreeDev.dmg"
   name "Free Dev"
