@@ -101,6 +101,26 @@ runtime.
 
 ## Install
 
+Requires **macOS 14 (Sonoma) or newer**.
+
+### Homebrew (easiest)
+
+```
+brew install --cask rockncoder/tap/free-dev
+```
+
+### Download
+
+Grab **FreeDev.dmg** from the
+[latest release](https://github.com/Rockncoder/free-dev/releases/latest), open
+it, and drag Free Dev into Applications. It's signed with a Developer ID and
+notarized by Apple, so it opens with **no Gatekeeper warnings**.
+
+Then look for the bird in your menu bar. To launch it at login, add it in
+**System Settings → General → Login Items**.
+
+### Build from source
+
 On any Mac with Xcode (it builds & signs locally, so Gatekeeper stays quiet):
 
 ```
@@ -108,15 +128,13 @@ On any Mac with Xcode (it builds & signs locally, so Gatekeeper stays quiet):
 ./install.sh --login    # …and start automatically at login
 ```
 
-Or just open `FreeDev.xcodeproj` and press ⌘R.
+Or just open `FreeDev.xcodeproj` and press ⌘R. Building needs Xcode with the iOS
+platform installed. Free Dev is a non-sandboxed local dev tool (it reads
+`~/Library/Developer` and runs `xcrun simctl`).
 
-For signed **notarized DMG + Homebrew cask** distribution, see
-[docs/DISTRIBUTION.md](docs/DISTRIBUTION.md) (`./notarize.sh` +
-`Casks/free-dev.rb`).
-
-Requirements: macOS 14+, Xcode with the iOS platform installed. It's a
-non-sandboxed local dev tool (it reads `~/Library/Developer` and runs
-`xcrun simctl`).
+> Maintainers: the signed **notarized DMG + Homebrew cask** release flow lives in
+> [docs/DISTRIBUTION.md](docs/DISTRIBUTION.md) (`./notarize.sh` +
+> `Casks/free-dev.rb`).
 
 ## Tests
 
