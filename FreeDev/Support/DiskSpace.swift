@@ -21,7 +21,8 @@ enum DiskSpace {
     static func sizeOnDisk(_ path: String) -> Int64 {
         guard FileManager.default.fileExists(atPath: path) else { return 0 }
         // `du -sk` is dramatically faster than a Swift file enumerator on large trees.
-        let result = Shell.run("/usr/bin/du", ["-sk", path])
+        // Generous timeout for huge folders, but bounded so it can't hang the scan.
+        let result = Shell.run("/usr/bin/du", ["-sk", path], timeout: 90)
         guard result.status == 0 || !result.stdout.isEmpty else { return 0 }
         let firstToken = result.stdout.split(whereSeparator: { $0 == "\t" || $0 == " " }).first
         guard let kb = firstToken.flatMap({ Int64($0) }) else { return 0 }

@@ -59,7 +59,7 @@ enum SimulatorService {
     // MARK: Queries
 
     static func allDevices() -> [Device] {
-        let result = Shell.run("/usr/bin/xcrun", ["simctl", "list", "-j", "devices"])
+        let result = Shell.run("/usr/bin/xcrun", ["simctl", "list", "-j", "devices"], timeout: 20)
         guard let data = result.stdout.data(using: .utf8),
               let list = try? JSONDecoder().decode(DeviceList.self, from: data) else {
             return []
@@ -84,7 +84,7 @@ enum SimulatorService {
     }
 
     static func installediOSRuntimes() -> [Runtime] {
-        let result = Shell.run("/usr/bin/xcrun", ["simctl", "list", "-j", "runtimes"])
+        let result = Shell.run("/usr/bin/xcrun", ["simctl", "list", "-j", "runtimes"], timeout: 20)
         guard let data = result.stdout.data(using: .utf8),
               let list = try? JSONDecoder().decode(RuntimeList.self, from: data) else {
             return []
@@ -98,7 +98,7 @@ enum SimulatorService {
 
     /// Downloaded runtime images on disk, with their sizes.
     static func runtimeImages() -> [RuntimeImage] {
-        let result = Shell.run("/usr/bin/xcrun", ["simctl", "runtime", "list", "-j"])
+        let result = Shell.run("/usr/bin/xcrun", ["simctl", "runtime", "list", "-j"], timeout: 20)
         guard let data = result.stdout.data(using: .utf8),
               let dict = try? JSONDecoder().decode([String: RawRuntimeImage].self, from: data) else {
             return []
