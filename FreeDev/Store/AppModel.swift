@@ -11,6 +11,8 @@ final class AppModel {
     var isScanning = false
     var isCleaning = false
     var statusMessage: String?
+    /// 0…1 progress of the current scan (fraction of categories measured).
+    var scanProgress: Double = 0
 
     private let home = FileManager.default.homeDirectoryForCurrentUser.path
 
@@ -43,13 +45,21 @@ final class AppModel {
     func refresh() async {
         guard !isScanning, !isCleaning else { return }
         isScanning = true
+        scanProgress = 0
         statusMessage = nil
         freeBytes = DiskSpace.freeBytes()
 
         async let version = VersionService.fetch()
-        let scanned = await DiskScanner.scan(home: home)
+        let scanned = await DiskScanner.scan(home: home) { [weak self] done, total in
+            let fraction = total > 0 ? Double(done) / Double(total) : 0
+            Task { @MainActor in
+                guard let self else { return }
+                self.scanProgress = max(self.scanProgress, fraction)
+            }
+        }
 
         items = scanned
+        scanProgress = 1
         versionInfo = await version
         freeBytes = DiskSpace.freeBytes()
         isScanning = false

@@ -7,7 +7,11 @@ import Foundation
 /// and hidden by the UI (auto-hide). Risky items are `.caution` and never
 /// selected by default.
 enum DiskScanner {
-    static func scan(home: String) async -> [CleanupItem] {
+    /// - Parameter onProgress: called as each category finishes measuring, with
+    ///   `(completed, total)`. Runs off the main actor — hop to `@MainActor` to
+    ///   update UI state.
+    static func scan(home: String,
+                     onProgress: (@Sendable (Int, Int) -> Void)? = nil) async -> [CleanupItem] {
         let library = "\(home)/Library"
         let developer = "\(library)/Developer"
 
@@ -135,12 +139,17 @@ enum DiskScanner {
             path: "\(home)/.pub-cache/hosted"))
 
         // Measure everything concurrently on background threads, preserving order.
+        let total = specs.count
         return await withTaskGroup(of: (Int, CleanupItem).self) { group in
             for (index, make) in specs.enumerated() {
                 group.addTask { (index, make()) }
             }
             var collected: [(Int, CleanupItem)] = []
-            for await result in group { collected.append(result) }
+            onProgress?(0, total)
+            for await result in group {
+                collected.append(result)
+                onProgress?(collected.count, total)
+            }
             return collected.sorted { $0.0 < $1.0 }.map { $0.1 }
         }
     }

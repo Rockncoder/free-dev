@@ -3,6 +3,7 @@ import SwiftUI
 struct MenuContentView: View {
     @Bindable var model: AppModel
     @State private var confirmingClean = false
+    @State private var showAbout = false
 
     var body: some View {
         VStack(spacing: 0) {
@@ -96,10 +97,16 @@ struct MenuContentView: View {
     @ViewBuilder
     private var content: some View {
         if model.items.isEmpty {
-            HStack(spacing: 8) {
-                ProgressView().controlSize(.small)
-                Text("Scanning developer caches…")
-                    .font(.system(size: 12)).foregroundStyle(.secondary)
+            VStack(spacing: 10) {
+                HStack(spacing: 8) {
+                    ProgressView().controlSize(.small)
+                    Text("Scanning developer caches… \(Int(model.scanProgress * 100))%")
+                        .font(.system(size: 12)).foregroundStyle(.secondary)
+                        .monospacedDigit()
+                }
+                ProgressView(value: model.scanProgress)
+                    .progressViewStyle(.linear)
+                    .frame(width: 220)
             }
             .frame(maxWidth: .infinity)
             .padding(.vertical, 28)
@@ -177,12 +184,23 @@ struct MenuContentView: View {
                 .disabled(model.selectedCount == 0 || model.isScanning || model.isCleaning)
             }
 
-            HStack {
-                Button("Quit Free Dev") { NSApplication.shared.terminate(nil) }
+            HStack(spacing: 8) {
+                Button("Quit") { NSApplication.shared.terminate(nil) }
                     .buttonStyle(.plain)
                     .font(.system(size: 11))
                     .foregroundStyle(.secondary)
+                Text("·").font(.system(size: 11)).foregroundStyle(.tertiary)
+                Button("About") { showAbout.toggle() }
+                    .buttonStyle(.plain)
+                    .font(.system(size: 11))
+                    .foregroundStyle(.secondary)
+                    .popover(isPresented: $showAbout, arrowEdge: .bottom) {
+                        AboutView()
+                    }
                 Spacer()
+                Text("Free Dev \(AboutView.appVersion)")
+                    .font(.system(size: 10))
+                    .foregroundStyle(.tertiary)
             }
         }
         .padding(.horizontal, 14)
