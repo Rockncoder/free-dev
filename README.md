@@ -110,6 +110,10 @@ On any Mac with Xcode (it builds & signs locally, so Gatekeeper stays quiet):
 
 Or just open `FreeDev.xcodeproj` and press ⌘R.
 
+For signed **notarized DMG + Homebrew cask** distribution, see
+[docs/DISTRIBUTION.md](docs/DISTRIBUTION.md) (`./notarize.sh` +
+`Casks/free-dev.rb`).
+
 Requirements: macOS 14+, Xcode with the iOS platform installed. It's a
 non-sandboxed local dev tool (it reads `~/Library/Developer` and runs
 `xcrun simctl`).
